@@ -144,6 +144,7 @@
               </el-form-item>
 
               <CaptchaRuntime
+                ref="captchaRef"
                 scene="reset_password"
                 path="/api/v1/user/password/reset"
                 :identity="form.email"
@@ -191,6 +192,7 @@ const loading = ref(false);
 const sendingCode = ref(false);
 const countdown = ref(0);
 const captchaPayload = ref<CaptchaPayload>({});
+const captchaRef = ref<{ reload: () => Promise<void> } | null>(null);
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 
 const form = reactive({
@@ -286,8 +288,10 @@ const handleSendCode = async (): Promise<void> => {
     await sendResetPasswordEmailCode(email, captchaPayload.value);
     ElMessage.success('验证码已发送，请查收邮箱');
     startCountdown(60);
+    await captchaRef.value?.reload();
   } catch (error: any) {
     ElMessage.error(error?.message || '验证码发送失败，请稍后重试');
+    await captchaRef.value?.reload();
   } finally {
     sendingCode.value = false;
   }
@@ -312,6 +316,7 @@ const handleSubmit = async (): Promise<void> => {
   } catch (error: any) {
     if (error !== false) {
       ElMessage.error(error?.message || '密码重置失败，请稍后重试');
+      await captchaRef.value?.reload();
     }
   } finally {
     loading.value = false;
