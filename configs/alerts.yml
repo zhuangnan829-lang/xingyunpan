@@ -1,0 +1,147 @@
+groups:
+  - name: xingyunpan_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: process_cpu_seconds_total > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 80% for 5 minutes"
+      
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 / 1024 > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 80% for 5 minutes"
+      
+      - alert: ApplicationDown
+        expr: up{job="xingyunpan"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Application is down"
+          description: "Xingyunpan application has been down for 1 minute"
+      
+      - alert: HighDiskUsage
+        expr: (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_avail_bytes{mountpoint="/"}) / node_filesystem_size_bytes{mountpoint="/"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is above 85%"
+      
+      - alert: HighErrorRate
+        expr: rate(xingyunpan_http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 5% for 5 minutes"
+
+  # Phase 5 告警规则
+  - name: phase5_alerts
+    rules:
+      # 分享功能告警
+      - alert: HighSharePasswordFailureRate
+        expr: rate(xingyunpan_share_password_verify_failures_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "分享密码验证失败率过高"
+          description: "过去 5 分钟内分享密码验证失败率超过 10 次/分钟，可能存在暴力破解尝试"
+      
+      - alert: ExpiredSharesAccumulating
+        expr: xingyunpan_active_shares < 0
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "过期分享未清理"
+          description: "存在大量过期分享未被清理"
+      
+      # 搜索功能告警
+      - alert: SlowSearchQueries
+        expr: histogram_quantile(0.95, rate(xingyunpan_search_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "搜索查询延迟过高"
+          description: "95% 的搜索查询延迟超过 2 秒，需要优化索引或增加缓存"
+      
+      - alert: LowSearchCacheHitRate
+        expr: rate(xingyunpan_search_cache_hits_total[5m]) / (rate(xingyunpan_search_cache_hits_total[5m]) + rate(xingyunpan_search_cache_misses_total[5m])) < 0.5
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "搜索缓存命中率低"
+          description: "搜索缓存命中率低于 50%，考虑调整缓存策略"
+      
+      # 回收站告警
+      - alert: RecycleBinOverload
+        expr: xingyunpan_recycle_bin_items_total > 10000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "回收站项目数过多"
+          description: "回收站项目数超过 10000，可能影响性能，检查清理任务是否正常运行"
+      
+      - alert: RecycleBinCleanupFailed
+        expr: increase(xingyunpan_recycle_bin_cleanup_total[24h]) == 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "回收站清理任务未执行"
+          description: "过去 24 小时内回收站清理任务未执行，检查 worker 进程"
+      
+      # 版本管理告警
+      - alert: HighVersionCount
+        expr: xingyunpan_file_versions_total / xingyunpan_total_files > 5
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "文件版本数过多"
+          description: "平均每个文件版本数超过 5，考虑调整版本保留策略"
+      
+      # 协作功能告警
+      - alert: HighCollaborationCount
+        expr: xingyunpan_collaborations_total > 50000
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "协作关系数量过多"
+          description: "协作关系总数超过 50000，可能影响查询性能"
+      
+      # 限流告警
+      - alert: FrequentRateLimiting
+        expr: rate(xingyunpan_rate_limit_triggers_total[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "限流触发频繁"
+          description: "过去 5 分钟内限流触发超过 50 次，可能存在异常访问或需要调整限流配置"
+      
+      - alert: ShareVerifyRateLimitHigh
+        expr: rate(xingyunpan_rate_limit_triggers_total{type="share_verify"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "分享密码验证限流频繁触发"
+          description: "分享密码验证限流频繁触发，可能存在暴力破解攻击"
+

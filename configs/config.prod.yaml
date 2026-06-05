@@ -1,0 +1,181 @@
+# 星云盘 V2 生产环境配置文件
+# Production Configuration for Xingyunpan V2
+
+# 服务器配置
+server:
+  port: 8080
+  mode: release             # 生产模式：禁用 debug 日志，启用性能优化
+  read_timeout: 60
+  write_timeout: 60
+  base_url: ${BASE_URL:https://your-domain.com}  # Phase 5: 分享功能基础 URL（必须设置为实际域名）
+
+# 数据库配置
+database:
+  host: ${DB_HOST:localhost}           # 支持环境变量覆盖，默认 localhost
+  port: ${DB_PORT:3306}
+  username: ${DB_USERNAME:xingyunpan}
+  password: ${DB_PASSWORD}              # 必须通过环境变量设置
+  database: ${DB_NAME:xingyunpan}
+  charset: utf8mb4
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600
+  log_level: warn           # 生产环境只记录警告和错误
+
+# Redis 配置
+redis:
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
+  password: ${REDIS_PASSWORD}           # 通过环境变量设置
+  db: ${REDIS_DB:0}
+  pool_size: 10
+  min_idle_conns: 5
+  max_retries: 3
+  dial_timeout: 5
+  read_timeout: 3
+  write_timeout: 3
+
+queue:
+  # Production should normally run only the standalone cmd/worker runner.
+  embedded_runner_enabled: false
+
+worker:
+  enabled: true
+
+# 日志配置
+log:
+  level: info               # 生产环境日志级别：只输出 INFO 及以上
+  format: json              # 使用 JSON 格式便于日志聚合工具解析
+  output: file              # 输出到文件
+  file_path: /data/xingyunpan/logs/app.log  # 生产环境日志路径
+  max_size: 100             # 单个日志文件最大 100MB
+  max_backups: 7            # 保留最近 7 个日志文件
+  max_age: 7                # 保留最近 7 天的日志
+  compress: true            # 压缩旧日志文件
+
+# 存储配置
+storage:
+  type: ${STORAGE_TYPE:local}
+  base_path: ${STORAGE_PATH:/data/xingyunpan/storage}
+  
+  # MinIO 配置（可选）
+  minio:
+    endpoint: ${MINIO_ENDPOINT}
+    access_key: ${MINIO_ACCESS_KEY}
+    secret_key: ${MINIO_SECRET_KEY}
+    bucket: ${MINIO_BUCKET:xingyunpan}
+    use_ssl: ${MINIO_USE_SSL:true}
+  
+  # 阿里云 OSS 配置（可选）
+  oss:
+    endpoint: ${OSS_ENDPOINT}
+    access_key_id: ${OSS_ACCESS_KEY_ID}
+    access_key_secret: ${OSS_ACCESS_KEY_SECRET}
+    bucket: ${OSS_BUCKET:xingyunpan}
+
+# JWT 配置
+jwt:
+  secret: ${JWT_SECRET}     # 必须通过环境变量设置，至少 32 字符
+  expire_hours: 24
+  refresh_expire_hours: 168
+
+# 文件上传配置
+upload:
+  max_file_size: 10737418240    # 10GB
+  chunk_size: 5242880           # 5MB
+  allowed_extensions:
+    - .jpg
+    - .jpeg
+    - .png
+    - .gif
+    - .webp
+    - .pdf
+    - .doc
+    - .docx
+    - .xls
+    - .xlsx
+    - .ppt
+    - .pptx
+    - .txt
+    - .md
+    - .csv
+    - .zip
+    - .rar
+    - .7z
+    - .tar
+    - .gz
+    - .mp4
+    - .avi
+    - .mkv
+    - .mov
+    - .mp3
+    - .wav
+    - .flac
+  temp_dir: ${TEMP_DIR:/data/xingyunpan/temp}
+
+# 用户配置
+user:
+  default_capacity: 10737418240   # 10GB
+  max_capacity: 107374182400      # 100GB
+
+# 监控配置
+monitoring:
+  enabled: true
+  metrics_path: /metrics
+  
+# 性能配置
+performance:
+  enable_pprof: false       # 生产环境禁用 pprof
+  enable_cache: true        # 启用缓存
+  cache_ttl: 300            # 缓存 TTL（秒）
+
+# 安全配置
+security:
+  enable_rate_limit: true   # 启用限流
+  rate_limit_per_ip: 100    # 每 IP 每分钟请求数
+  rate_limit_per_user: 1000 # 每用户每分钟请求数
+  enable_cors: true         # 启用 CORS
+  allowed_origins:
+    - https://your-domain.com
+  enable_file_validation: true  # 启用文件验证
+
+# Phase 5 配置
+phase5:
+  # 分享功能配置
+  share:
+    bcrypt_cost: ${BCRYPT_COST:12}                    # bcrypt 密码哈希成本（10-14）
+    token_length: ${SHARE_TOKEN_LENGTH:32}            # 分享令牌长度（字节）
+    default_expires_days: ${SHARE_DEFAULT_EXPIRES:7}  # 默认过期天数
+    max_expires_days: ${SHARE_MAX_EXPIRES:30}         # 最大过期天数
+    password_min_length: 4                            # 分享密码最小长度
+    password_max_length: 8                            # 分享密码最大长度
+  
+  # 回收站配置
+  recycle:
+    retention_days: ${RECYCLE_BIN_RETENTION_DAYS:30}  # 回收站保留天数
+    cleanup_cron: ${RECYCLE_CLEANUP_CRON:0 2 * * *}   # 清理任务 cron 表达式
+    cleanup_batch_size: ${RECYCLE_CLEANUP_BATCH:100}  # 批量清理大小
+  
+  # 版本管理配置
+  version:
+    max_versions_per_file: ${MAX_FILE_VERSIONS:10}    # 每个文件最大版本数
+    enable_auto_versioning: ${ENABLE_AUTO_VERSIONING:true}  # 启用自动版本管理
+  
+  # 搜索配置
+  search:
+    cache_ttl: ${SEARCH_CACHE_TTL:300}                # 搜索结果缓存 TTL（秒）
+    max_results: ${SEARCH_MAX_RESULTS:1000}           # 最大搜索结果数
+    suggestion_limit: ${SEARCH_SUGGESTION_LIMIT:10}   # 搜索建议数量限制
+    min_keyword_length: ${SEARCH_MIN_KEYWORD:1}       # 最小关键词长度
+  
+  # 协作配置
+  collaboration:
+    cache_ttl: ${COLLABORATION_CACHE_TTL:120}         # 协作者列表缓存 TTL（秒）
+    max_collaborators_per_file: ${MAX_COLLABORATORS:50}  # 每个文件最大协作者数
+  
+  # 限流配置
+  rate_limit:
+    search_per_minute: ${RATE_LIMIT_SEARCH:60}        # 搜索 API 限流（次/分钟/用户）
+    file_ops_per_minute: ${RATE_LIMIT_FILE_OPS:100}   # 文件操作 API 限流（次/分钟/用户）
+    share_verify_per_15min: ${RATE_LIMIT_SHARE_VERIFY:5}  # 分享密码验证限流（次/15分钟/IP）
+    share_verify_window: ${RATE_LIMIT_SHARE_WINDOW:900}   # 分享密码验证限流窗口（秒）

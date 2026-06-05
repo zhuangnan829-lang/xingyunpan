@@ -1,0 +1,14 @@
+[Unit]
+Description=Xingyunpan V2 Monitoring Check Timer
+Requires=xingyunpan-monitoring.service
+
+[Timer]
+# 每 5 分钟执行一次
+OnBootSec=5min
+OnUnitActiveSec=5min
+
+# 如果服务正在运行，不启动新实例
+Unit=xingyunpan-monitoring.service
+
+[Install]
+WantedBy=timers.target

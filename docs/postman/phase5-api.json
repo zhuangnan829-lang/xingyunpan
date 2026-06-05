@@ -1,0 +1,614 @@
+{
+  "info": {
+    "name": "星云盘 Phase 5 API",
+    "description": "星云盘 Phase 5 功能 API 集合，包含分享、搜索、回收站、版本管理和协作功能的 26 个 API 端点",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "xingyunpan-v2"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "分享功能 (6 个端点)",
+      "item": [
+        {
+          "name": "创建分享",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_ids\": [\"file-uuid-1\", \"file-uuid-2\"],\n  \"expires_in\": 7,\n  \"access_code\": \"1234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/shares",
+              "host": ["{{base_url}}"],
+              "path": ["api", "shares"]
+            },
+            "description": "创建文件分享链接，支持密码保护和过期时间"
+          },
+          "response": []
+        },
+        {
+          "name": "获取分享信息",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shares/:shareId",
+              "host": ["{{base_url}}"],
+              "path": ["api", "shares", ":shareId"],
+              "variable": [
+                {
+                  "key": "shareId",
+                  "value": "abc123xyz789"
+                }
+              ]
+            },
+            "description": "根据分享令牌获取分享详情（公开接口，无需认证）"
+          },
+          "response": []
+        },
+        {
+          "name": "验证分享密码",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"access_code\": \"1234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/shares/:shareId/verify",
+              "host": ["{{base_url}}"],
+              "path": ["api", "shares", ":shareId", "verify"],
+              "variable": [
+                {
+                  "key": "shareId",
+                  "value": "abc123xyz789"
+                }
+              ]
+            },
+            "description": "验证分享访问密码，成功后返回临时访问令牌"
+          },
+          "response": []
+        },
+        {
+          "name": "获取我的分享列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shares/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "shares", "me"]
+            },
+            "description": "获取当前用户创建的所有分享"
+          },
+          "response": []
+        },
+        {
+          "name": "删除分享",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shares/:shareId",
+              "host": ["{{base_url}}"],
+              "path": ["api", "shares", ":shareId"],
+              "variable": [
+                {
+                  "key": "shareId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "删除指定的分享（仅创建者可删除）"
+          },
+          "response": []
+        },
+        {
+          "name": "增加下载计数",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shares/:shareId/download",
+              "host": ["{{base_url}}"],
+              "path": ["api", "shares", ":shareId", "download"],
+              "variable": [
+                {
+                  "key": "shareId",
+                  "value": "abc123xyz789"
+                }
+              ]
+            },
+            "description": "记录分享文件的下载次数"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "搜索功能 (2 个端点)",
+      "item": [
+        {
+          "name": "搜索文件",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/search/files?keyword=document&file_type=pdf&page=1&page_size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "search", "files"],
+              "query": [
+                {
+                  "key": "keyword",
+                  "value": "document",
+                  "description": "搜索关键词"
+                },
+                {
+                  "key": "file_type",
+                  "value": "pdf",
+                  "description": "文件类型过滤"
+                },
+                {
+                  "key": "size_min",
+                  "value": "1024",
+                  "description": "最小文件大小（字节）",
+                  "disabled": true
+                },
+                {
+                  "key": "size_max",
+                  "value": "10485760",
+                  "description": "最大文件大小（字节）",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "2024-01-01T00:00:00Z",
+                  "description": "开始日期",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "2024-12-31T23:59:59Z",
+                  "description": "结束日期",
+                  "disabled": true
+                },
+                {
+                  "key": "folder_id",
+                  "value": "folder-uuid",
+                  "description": "文件夹 ID",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "页码"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "每页大小"
+                }
+              ]
+            },
+            "description": "根据多种条件搜索文件（支持分页）"
+          },
+          "response": []
+        },
+        {
+          "name": "获取搜索建议",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/search/suggestions?prefix=doc",
+              "host": ["{{base_url}}"],
+              "path": ["api", "search", "suggestions"],
+              "query": [
+                {
+                  "key": "prefix",
+                  "value": "doc",
+                  "description": "搜索前缀（至少 2 个字符）"
+                }
+              ]
+            },
+            "description": "根据前缀获取搜索建议（最多 10 条）"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "回收站功能 (5 个端点)",
+      "item": [
+        {
+          "name": "移动到回收站",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_ids\": [1, 2, 3]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/recycle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recycle"]
+            },
+            "description": "将文件移动到回收站（软删除）"
+          },
+          "response": []
+        },
+        {
+          "name": "获取回收站列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/recycle?page=1&page_size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recycle"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "页码"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": "每页大小"
+                }
+              ]
+            },
+            "description": "获取当前用户的回收站项目列表（支持分页）"
+          },
+          "response": []
+        },
+        {
+          "name": "恢复文件",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item_ids\": [1, 2, 3]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/recycle/restore",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recycle", "restore"]
+            },
+            "description": "从回收站恢复文件到原始位置"
+          },
+          "response": []
+        },
+        {
+          "name": "永久删除",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item_ids\": [1, 2, 3]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/recycle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recycle"]
+            },
+            "description": "永久删除回收站中的文件（不可恢复）"
+          },
+          "response": []
+        },
+        {
+          "name": "清空回收站",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/recycle/all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "recycle", "all"]
+            },
+            "description": "永久删除回收站中的所有文件"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "版本管理功能 (4 个端点)",
+      "item": [
+        {
+          "name": "获取版本历史",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/files/:fileId/versions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "files", ":fileId", "versions"],
+              "variable": [
+                {
+                  "key": "fileId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "获取文件的所有历史版本"
+          },
+          "response": []
+        },
+        {
+          "name": "下载版本",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/files/:fileId/versions/:versionId/download",
+              "host": ["{{base_url}}"],
+              "path": ["api", "files", ":fileId", "versions", ":versionId", "download"],
+              "variable": [
+                {
+                  "key": "fileId",
+                  "value": "1"
+                },
+                {
+                  "key": "versionId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "下载文件的指定版本"
+          },
+          "response": []
+        },
+        {
+          "name": "恢复版本",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/files/:fileId/versions/:versionId/restore",
+              "host": ["{{base_url}}"],
+              "path": ["api", "files", ":fileId", "versions", ":versionId", "restore"],
+              "variable": [
+                {
+                  "key": "fileId",
+                  "value": "1"
+                },
+                {
+                  "key": "versionId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "将文件恢复到指定版本（非破坏性，创建新版本）"
+          },
+          "response": []
+        },
+        {
+          "name": "删除版本",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/files/:fileId/versions/:versionId",
+              "host": ["{{base_url}}"],
+              "path": ["api", "files", ":fileId", "versions", ":versionId"],
+              "variable": [
+                {
+                  "key": "fileId",
+                  "value": "1"
+                },
+                {
+                  "key": "versionId",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": "删除文件的指定版本（不能删除当前版本）"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "协作功能 (6 个端点)",
+      "item": [
+        {
+          "name": "添加协作者",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_id\": 1,\n  \"username\": \"collaborator\",\n  \"permission\": \"edit\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collaborations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collaborations"]
+            },
+            "description": "为文件添加协作者并设置权限（view, download, edit）"
+          },
+          "response": []
+        },
+        {
+          "name": "获取我的协作文件",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/collaborations/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collaborations", "me"]
+            },
+            "description": "获取当前用户作为协作者的所有文件"
+          },
+          "response": []
+        },
+        {
+          "name": "获取协作者列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/files/:fileId/collaborators",
+              "host": ["{{base_url}}"],
+              "path": ["api", "files", ":fileId", "collaborators"],
+              "variable": [
+                {
+                  "key": "fileId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "获取文件的所有协作者"
+          },
+          "response": []
+        },
+        {
+          "name": "更新协作者权限",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permission\": \"download\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/files/:fileId/collaborators/:userId",
+              "host": ["{{base_url}}"],
+              "path": ["api", "files", ":fileId", "collaborators", ":userId"],
+              "variable": [
+                {
+                  "key": "fileId",
+                  "value": "1"
+                },
+                {
+                  "key": "userId",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": "更新协作者的访问权限"
+          },
+          "response": []
+        },
+        {
+          "name": "移除协作者",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/files/:fileId/collaborators/:userId",
+              "host": ["{{base_url}}"],
+              "path": ["api", "files", ":fileId", "collaborators", ":userId"],
+              "variable": [
+                {
+                  "key": "fileId",
+                  "value": "1"
+                },
+                {
+                  "key": "userId",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": "移除文件的协作者"
+          },
+          "response": []
+        },
+        {
+          "name": "检查文件权限",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/files/:fileId/permissions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "files", ":fileId", "permissions"],
+              "variable": [
+                {
+                  "key": "fileId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "检查当前用户对文件的访问权限"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

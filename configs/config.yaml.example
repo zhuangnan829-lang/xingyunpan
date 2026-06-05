@@ -1,0 +1,98 @@
+server:
+  port: 8080
+  mode: debug
+  read_timeout: 60
+  write_timeout: 60
+  base_url: http://localhost:8080
+
+database:
+  host: localhost
+  port: 3306
+  username: root
+  password: your_password_here
+  database: xingyunpan
+  charset: utf8mb4
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600
+  log_level: info
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+  min_idle_conns: 5
+  max_retries: 3
+  dial_timeout: 5
+  read_timeout: 3
+  write_timeout: 3
+
+email:
+  enabled: false
+  provider: qq
+  host: ""
+  port: 0
+  username: your_email@example.com
+  password: your_smtp_authorization_code
+  from_name: 星云盘
+  from_address: your_email@example.com
+  code_ttl_seconds: 300
+  send_interval_seconds: 60
+
+log:
+  level: debug
+  format: console
+  output: stdout
+  file_path: logs/app.log
+  max_size: 100
+  max_backups: 10
+  max_age: 30
+  compress: true
+
+storage:
+  type: local
+  base_path: ./storage
+  minio:
+    endpoint: localhost:9000
+    access_key: minioadmin
+    secret_key: minioadmin
+    bucket: xingyunpan
+    use_ssl: false
+  oss:
+    endpoint: oss-cn-hangzhou.aliyuncs.com
+    access_key_id: your_access_key_id
+    access_key_secret: your_access_key_secret
+    bucket: xingyunpan
+
+jwt:
+  secret: change-this-secret-in-production
+  expire_hours: 24
+  refresh_expire_hours: 168
+
+upload:
+  max_file_size: 5368709120
+  chunk_size: 5242880
+  allowed_extensions:
+    - .jpg
+    - .jpeg
+    - .png
+    - .gif
+    - .pdf
+    - .doc
+    - .docx
+    - .xls
+    - .xlsx
+    - .ppt
+    - .pptx
+    - .txt
+    - .zip
+    - .rar
+    - .mp4
+    - .mp3
+  temp_dir: ./temp
+
+user:
+  default_capacity: 10737418240
+  max_capacity: 107374182400

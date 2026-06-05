@@ -1,0 +1,22 @@
+[Unit]
+Description=Xingyunpan V2 Log Cleanup
+After=network.target
+
+[Service]
+Type=oneshot
+User=xingyunpan
+Group=xingyunpan
+WorkingDirectory=/opt/xingyunpan-v2
+
+# 清理应用日志（保留 7 天）
+ExecStart=/usr/bin/find /data/xingyunpan/logs -name "app-*.log.gz" -mtime +7 -delete
+
+# 清理临时文件（保留 1 天）
+ExecStart=/usr/bin/find /data/xingyunpan/temp -type f -mtime +1 -delete
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=xingyunpan-cleanup
+
+[Install]
+WantedBy=multi-user.target

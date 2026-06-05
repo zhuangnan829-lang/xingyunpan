@@ -1,0 +1,184 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      
+      - name: Download dependencies
+        run: go mod download
+      
+      - name: Run tests
+        run: go test -v ./...
+  
+  build:
+    name: Build Application
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      
+      - name: Build server
+        run: |
+          go build -o bin/server -ldflags="-s -w" cmd/server/main.go
+      
+      - name: Build worker
+        run: |
+          go build -o bin/worker -ldflags="-s -w" cmd/worker/main.go
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: bin/
+          retention-days: 7
+  
+  deploy:
+    name: Deploy to Server
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: binaries
+          path: bin/
+      
+      - name: Make binaries executable
+        run: chmod +x bin/server bin/worker
+      
+      - name: Deploy to server via SCP
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "bin/server,bin/worker,configs/config.yaml"
+          target: "/opt/xingyunpan-v2"
+          strip_components: 0
+      
+      - name: Restart services via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            # Make binaries executable
+            chmod +x /opt/xingyunpan-v2/bin/server
+            chmod +x /opt/xingyunpan-v2/bin/worker
+            
+            # Restart services
+            systemctl restart xingyunpan-server
+            systemctl restart xingyunpan-worker
+            
+            # Wait for services to start
+            sleep 5
+            
+            # Check service status
+            systemctl is-active xingyunpan-server
+            systemctl is-active xingyunpan-worker
+      
+      - name: Health check
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            # Wait a bit more for application to fully start
+            sleep 10
+            
+            # Perform health check
+            curl -f http://localhost:8080/health || exit 1
+            
+            echo "Deployment successful!"
+      
+      - name: Rollback on failure
+        if: failure()
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            echo "Deployment failed! Rolling back..."
+            
+            # Stop services
+            systemctl stop xingyunpan-server
+            systemctl stop xingyunpan-worker
+            
+            # Restore backup if exists
+            if [ -f /opt/xingyunpan-v2/bin/server.backup ]; then
+              cp /opt/xingyunpan-v2/bin/server.backup /opt/xingyunpan-v2/bin/server
+              cp /opt/xingyunpan-v2/bin/worker.backup /opt/xingyunpan-v2/bin/worker
+              
+              # Restart with backup
+              systemctl start xingyunpan-server
+              systemctl start xingyunpan-worker
+              
+              echo "Rollback complete"
+            else
+              echo "No backup found, manual intervention required"
+              exit 1
+            fi
+      
+      - name: Send deployment notification
+        if: always()
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            if [ "${{ job.status }}" == "success" ]; then
+              echo "✅ Deployment successful at $(date)"
+            else
+              echo "❌ Deployment failed at $(date)"
+            fi

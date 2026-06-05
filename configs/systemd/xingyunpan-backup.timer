@@ -1,0 +1,17 @@
+[Unit]
+Description=Xingyunpan V2 Database Backup Timer
+Requires=xingyunpan-backup.service
+
+[Timer]
+# 每日凌晨 2:00 执行
+OnCalendar=daily
+OnCalendar=*-*-* 02:00:00
+
+# 如果错过了执行时间，启动后立即执行
+Persistent=true
+
+# 随机延迟 0-300 秒，避免多个任务同时执行
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,2259 @@
+openapi: 3.0.3
+info:
+  title: 星云盘 V2 API
+  description: |
+    星云盘 V2 是一个基于 Go + GORM + Redis + MinIO 的高性能云盘系统。
+    
+    ## 功能特性
+    - 用户注册与登录（JWT 认证）
+    - 文件上传与下载（支持秒传）
+    - 文件夹管理（创建、重命名、移动、删除）
+    - 文件去重（基于 SHA256 哈希）
+    - 引用计数管理
+    
+    ## 认证方式
+    大部分 API 需要在请求头中携带 JWT Token：
+    ```
+    Authorization: Bearer <access_token>
+    ```
+  version: 2.0.0
+  contact:
+    name: 星云盘团队
+    email: support@xingyunpan.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: 本地开发环境
+  - url: https://api.xingyunpan.com
+    description: 生产环境
+
+tags:
+  - name: 健康检查
+    description: 服务健康状态检查
+  - name: 认证
+    description: 用户注册、登录相关接口
+  - name: 用户
+    description: 用户信息管理
+  - name: 文件
+    description: 文件上传、下载、删除等操作
+  - name: 文件夹
+    description: 文件夹创建、重命名、移动、删除
+  - name: 分享
+    description: 文件分享功能（Phase 5）
+  - name: 搜索
+    description: 文件搜索功能（Phase 5）
+  - name: 回收站
+    description: 回收站管理功能（Phase 5）
+  - name: 版本管理
+    description: 文件版本管理功能（Phase 5）
+  - name: 协作
+    description: 文件协作功能（Phase 5）
+
+paths:
+  /health:
+    get:
+      tags:
+        - 健康检查
+      summary: 完整健康检查
+      description: 检查服务、数据库和 Redis 的健康状态
+      operationId: healthCheck
+      responses:
+        '200':
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                code: 200
+                message: success
+                data:
+                  service:
+                    status: healthy
+                    name: xingyunpan-v2
+                  database:
+                    status: healthy
+                  redis:
+                    status: healthy
+        '503':
+          description: 服务异常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 503
+                message: 服务部分组件异常
+                data:
+                  service:
+                    status: healthy
+                  database:
+                    status: unhealthy
+                    error: connection refused
+                  redis:
+                    status: healthy
+
+  /ping:
+    get:
+      tags:
+        - 健康检查
+      summary: Ping 测试
+      description: 简单的 Ping 测试接口
+      operationId: ping
+      responses:
+        '200':
+          description: Pong
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: pong
+                data: null
+
+  /api/v1/auth/register:
+    post:
+      tags:
+        - 认证
+      summary: 用户注册
+      description: 创建新用户账号
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              username: testuser
+              password: password123
+              email: test@example.com
+      responses:
+        '200':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: 注册成功
+                data:
+                  user_id: 1
+                  username: testuser
+                  email: test@example.com
+        '400':
+          description: 参数错误或用户已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                参数错误:
+                  value:
+                    code: 400
+                    message: 参数错误
+                    data: null
+                用户名已存在:
+                  value:
+                    code: 400
+                    message: 用户名已存在
+                    data: null
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - 认证
+      summary: 用户登录
+      description: 用户登录获取 JWT Token
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              username: testuser
+              password: password123
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: 登录成功
+                data:
+                  access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  expires_in: 86400
+                  user:
+                    id: 1
+                    username: testuser
+                    email: test@example.com
+        '401':
+          description: 用户名或密码错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 401
+                message: 用户名或密码错误
+                data: null
+
+  /api/v1/user/info:
+    get:
+      tags:
+        - 用户
+      summary: 获取用户信息
+      description: 获取当前登录用户的详细信息
+      operationId: getUserInfo
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  id: 1
+                  username: testuser
+                  email: test@example.com
+                  capacity: 10737418240
+                  used_size: 1048576
+                  created_at: "2024-01-01T00:00:00Z"
+                  updated_at: "2024-01-01T00:00:00Z"
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 401
+                message: 未授权
+                data: null
+
+  /api/v1/file/upload:
+    post:
+      tags:
+        - 文件
+      summary: 文件上传
+      description: 上传文件到云盘（支持秒传）
+      operationId: uploadFile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 要上传的文件
+                parent_id:
+                  type: integer
+                  description: 父文件夹 ID（可选）
+              required:
+                - file
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: 上传成功
+                data:
+                  id: 1
+                  user_id: 1
+                  name: example.txt
+                  is_folder: false
+                  parent_id: null
+                  physical_file_id: 1
+                  created_at: "2024-01-01T00:00:00Z"
+                  updated_at: "2024-01-01T00:00:00Z"
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/file/list:
+    get:
+      tags:
+        - 文件
+      summary: 文件列表
+      description: 获取用户的文件列表（支持分页）
+      operationId: listFiles
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: 页码（从 1 开始）
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: parent_id
+          in: query
+          description: 父文件夹 ID（可选，不传则查询根目录）
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  list:
+                    - id: 1
+                      user_id: 1
+                      name: Documents
+                      is_folder: true
+                      parent_id: null
+                      created_at: "2024-01-01T00:00:00Z"
+                    - id: 2
+                      user_id: 1
+                      name: example.txt
+                      is_folder: false
+                      parent_id: null
+                      physical_file_id: 1
+                      created_at: "2024-01-01T00:00:00Z"
+                  total: 2
+                  page: 1
+                  page_size: 20
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/file/{id}:
+    delete:
+      tags:
+        - 文件
+      summary: 删除文件
+      description: 删除指定的文件
+      operationId: deleteFile
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 文件 ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: 删除成功
+                data: null
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权删除此文件
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 500
+                message: 无权删除此文件
+                data: null
+
+  /api/v1/file/check:
+    post:
+      tags:
+        - 文件
+      summary: 秒传检查
+      description: 检查文件是否已存在（用于秒传）
+      operationId: checkFile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hash:
+                  type: string
+                  description: 文件的 SHA256 哈希值
+              required:
+                - hash
+            example:
+              hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      responses:
+        '200':
+          description: 检查成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              examples:
+                文件存在:
+                  value:
+                    code: 200
+                    message: 文件已存在，可以秒传
+                    data:
+                      exists: true
+                      file_id: 1
+                文件不存在:
+                  value:
+                    code: 200
+                    message: 文件不存在，需要上传
+                    data:
+                      exists: false
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/folder:
+    post:
+      tags:
+        - 文件夹
+      summary: 创建文件夹
+      description: 创建新的文件夹
+      operationId: createFolder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFolderRequest'
+            example:
+              name: Documents
+              parent_id: null
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: 创建成功
+                data:
+                  id: 1
+                  user_id: 1
+                  name: Documents
+                  is_folder: true
+                  parent_id: null
+                  created_at: "2024-01-01T00:00:00Z"
+                  updated_at: "2024-01-01T00:00:00Z"
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/folder/{id}:
+    put:
+      tags:
+        - 文件夹
+      summary: 重命名文件夹
+      description: 重命名指定的文件夹
+      operationId: renameFolder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 文件夹 ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: 新的文件夹名称
+              required:
+                - name
+            example:
+              name: New Documents
+      responses:
+        '200':
+          description: 重命名成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: 重命名成功
+                data: null
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权操作此文件夹
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - 文件夹
+      summary: 删除文件夹
+      description: 删除指定的文件夹
+      operationId: deleteFolder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 文件夹 ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: 删除成功
+                data: null
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权删除此文件夹
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/folder/{id}/move:
+    put:
+      tags:
+        - 文件夹
+      summary: 移动文件夹
+      description: 将文件夹移动到新的父文件夹
+      operationId: moveFolder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 文件夹 ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                parent_id:
+                  type: integer
+                  nullable: true
+                  description: 新的父文件夹 ID（null 表示移动到根目录）
+            example:
+              parent_id: 2
+      responses:
+        '200':
+          description: 移动成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: 移动成功
+                data: null
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权移动此文件夹
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Token 认证。在请求头中添加：
+        ```
+        Authorization: Bearer <access_token>
+        ```
+
+  schemas:
+    Response:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 状态码
+          example: 200
+        message:
+          type: string
+          description: 响应消息
+          example: success
+        data:
+          type: object
+          nullable: true
+          description: 响应数据
+      required:
+        - code
+        - message
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 错误码
+          example: 400
+        message:
+          type: string
+          description: 错误消息
+          example: 参数错误
+        data:
+          type: object
+          nullable: true
+          description: 错误详情
+      required:
+        - code
+        - message
+
+    HealthResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: success
+        data:
+          type: object
+          properties:
+            service:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: healthy
+                name:
+                  type: string
+                  example: xingyunpan-v2
+            database:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: healthy
+            redis:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: healthy
+
+    RegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: 用户名（3-50 字符）
+          minLength: 3
+          maxLength: 50
+          example: testuser
+        password:
+          type: string
+          description: 密码（6-100 字符）
+          minLength: 6
+          maxLength: 100
+          format: password
+          example: password123
+        email:
+          type: string
+          description: 邮箱地址
+          format: email
+          example: test@example.com
+      required:
+        - username
+        - password
+        - email
+
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: 用户名
+          example: testuser
+        password:
+          type: string
+          description: 密码
+          format: password
+          example: password123
+      required:
+        - username
+        - password
+
+    CreateFolderRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 文件夹名称
+          example: Documents
+        parent_id:
+          type: integer
+          nullable: true
+          description: 父文件夹 ID（null 表示在根目录创建）
+          example: null
+      required:
+        - name
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 用户 ID
+          example: 1
+        username:
+          type: string
+          description: 用户名
+          example: testuser
+        email:
+          type: string
+          description: 邮箱
+          example: test@example.com
+        capacity:
+          type: integer
+          format: int64
+          description: 总容量（字节）
+          example: 10737418240
+        used_size:
+          type: integer
+          format: int64
+          description: 已用空间（字节）
+          example: 1048576
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+
+    UserFile:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 文件/文件夹 ID
+          example: 1
+        user_id:
+          type: integer
+          description: 用户 ID
+          example: 1
+        name:
+          type: string
+          description: 文件/文件夹名称
+          example: example.txt
+        is_folder:
+          type: boolean
+          description: 是否为文件夹
+          example: false
+        parent_id:
+          type: integer
+          nullable: true
+          description: 父文件夹 ID
+          example: null
+        physical_file_id:
+          type: integer
+          nullable: true
+          description: 物理文件 ID（仅文件有效）
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+
+    PhysicalFile:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 物理文件 ID
+          example: 1
+        hash:
+          type: string
+          description: 文件 SHA256 哈希值
+          example: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        size:
+          type: integer
+          format: int64
+          description: 文件大小（字节）
+          example: 1024
+        path:
+          type: string
+          description: 存储路径
+          example: files/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        ref_count:
+          type: integer
+          description: 引用计数
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+
+  # ========== Phase 5: 分享功能 API ==========
+  /api/shares:
+    post:
+      tags:
+        - 分享
+      summary: 创建分享
+      description: 创建文件分享链接，支持密码保护和过期时间
+      operationId: createShare
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShareRequest'
+            example:
+              file_ids: ["file-uuid-1", "file-uuid-2"]
+              expires_in: 7
+              access_code: "1234"
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: 创建成功
+                data:
+                  share_id: 1
+                  share_token: "abc123xyz789"
+                  share_url: "http://localhost:8080/s/abc123xyz789"
+                  expires_at: "2024-01-08T00:00:00Z"
+        '400':
+          description: 参数错误或文件不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/shares/me:
+    get:
+      tags:
+        - 分享
+      summary: 获取我的分享列表
+      description: 获取当前用户创建的所有分享
+      operationId: getMyShares
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  - share_id: 1
+                    file_ids: ["file-uuid-1"]
+                    file_names: ["document.pdf"]
+                    created_at: "2024-01-01T00:00:00Z"
+                    expires_at: "2024-01-08T00:00:00Z"
+                    download_count: 5
+                    access_count: 10
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/shares/{shareId}:
+    get:
+      tags:
+        - 分享
+      summary: 获取分享信息
+      description: 根据分享令牌获取分享详情（公开接口）
+      operationId: getShareInfo
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          description: 分享令牌
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  share_id: 1
+                  file_ids: ["file-uuid-1"]
+                  file_names: ["document.pdf"]
+                  creator_name: "testuser"
+                  created_at: "2024-01-01T00:00:00Z"
+                  expires_at: "2024-01-08T00:00:00Z"
+                  has_password: true
+                  download_count: 5
+        '404':
+          description: 分享不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: 分享已过期
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 410
+                message: 分享已过期
+                data: null
+
+    delete:
+      tags:
+        - 分享
+      summary: 删除分享
+      description: 删除指定的分享（仅创建者可删除）
+      operationId: deleteShare
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          description: 分享 ID
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 删除成功
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限删除此分享
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 分享不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/shares/{shareId}/verify:
+    post:
+      tags:
+        - 分享
+      summary: 验证分享密码
+      description: 验证分享访问密码，成功后返回临时访问令牌
+      operationId: verifySharePassword
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          description: 分享令牌
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPasswordRequest'
+            example:
+              access_code: "1234"
+      responses:
+        '200':
+          description: 验证成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  valid: true
+                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        '401':
+          description: 密码错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: 超过验证次数限制
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 429
+                message: 超过验证次数限制
+                data: null
+          headers:
+            Retry-After:
+              description: 重试等待时间（秒）
+              schema:
+                type: integer
+
+  /api/shares/{shareId}/download:
+    post:
+      tags:
+        - 分享
+      summary: 增加下载计数
+      description: 记录分享文件的下载次数
+      operationId: incrementDownloadCount
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          description: 分享令牌
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 成功
+        '404':
+          description: 分享不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ========== Phase 5: 搜索功能 API ==========
+  /api/search/files:
+    get:
+      tags:
+        - 搜索
+      summary: 搜索文件
+      description: 根据多种条件搜索文件（支持分页）
+      operationId: searchFiles
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: keyword
+          in: query
+          description: 搜索关键词（文件名模糊匹配）
+          schema:
+            type: string
+        - name: file_type
+          in: query
+          description: 文件类型过滤
+          schema:
+            type: string
+        - name: size_min
+          in: query
+          description: 最小文件大小（字节）
+          schema:
+            type: integer
+            format: int64
+        - name: size_max
+          in: query
+          description: 最大文件大小（字节）
+          schema:
+            type: integer
+            format: int64
+        - name: date_from
+          in: query
+          description: 开始日期（ISO 8601 格式）
+          schema:
+            type: string
+            format: date-time
+        - name: date_to
+          in: query
+          description: 结束日期（ISO 8601 格式）
+          schema:
+            type: string
+            format: date-time
+        - name: folder_id
+          in: query
+          description: 文件夹 ID（限制搜索范围）
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          description: 每页大小
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: 搜索成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  files:
+                    - file_id: "file-uuid-1"
+                      file_name: "document.pdf"
+                      file_type: "application/pdf"
+                      file_size: 1048576
+                      file_path: "/Documents/document.pdf"
+                      modified_at: "2024-01-01T00:00:00Z"
+                      is_folder: false
+                  total: 1
+                  page: 1
+                  page_size: 20
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/search/suggestions:
+    get:
+      tags:
+        - 搜索
+      summary: 获取搜索建议
+      description: 根据前缀获取搜索建议（最多 10 条）
+      operationId: getSearchSuggestions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: prefix
+          in: query
+          required: true
+          description: 搜索前缀（至少 2 个字符）
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  - keyword: "document.pdf"
+                    count: 3
+                  - keyword: "documents"
+                    count: 1
+        '400':
+          description: 前缀长度不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ========== Phase 5: 回收站功能 API ==========
+  /api/recycle:
+    post:
+      tags:
+        - 回收站
+      summary: 移动到回收站
+      description: 将文件移动到回收站（软删除）
+      operationId: moveToRecycle
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveToRecycleRequest'
+            example:
+              file_ids: [1, 2, 3]
+      responses:
+        '204':
+          description: 移动成功
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      tags:
+        - 回收站
+      summary: 获取回收站列表
+      description: 获取当前用户的回收站项目列表（支持分页）
+      operationId: getRecycleList
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          description: 每页大小
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  list:
+                    - id: 1
+                      file_id: "file-uuid-1"
+                      file_name: "document.pdf"
+                      file_size: 1048576
+                      file_type: "application/pdf"
+                      original_path: "/Documents/document.pdf"
+                      deleted_at: "2024-01-01T00:00:00Z"
+                      expires_at: "2024-01-31T00:00:00Z"
+                  total: 1
+                  page: 1
+                  page_size: 20
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - 回收站
+      summary: 永久删除
+      description: 永久删除回收站中的文件（不可恢复）
+      operationId: permanentDelete
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PermanentDeleteRequest'
+            example:
+              item_ids: [1, 2, 3]
+      responses:
+        '204':
+          description: 删除成功
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/recycle/restore:
+    post:
+      tags:
+        - 回收站
+      summary: 恢复文件
+      description: 从回收站恢复文件到原始位置
+      operationId: restoreFiles
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RestoreFilesRequest'
+            example:
+              item_ids: [1, 2, 3]
+      responses:
+        '204':
+          description: 恢复成功
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/recycle/all:
+    delete:
+      tags:
+        - 回收站
+      summary: 清空回收站
+      description: 永久删除回收站中的所有文件
+      operationId: emptyRecycleBin
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: 清空成功
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ========== Phase 5: 版本管理 API ==========
+  /api/files/{fileId}/versions:
+    get:
+      tags:
+        - 版本管理
+      summary: 获取版本历史
+      description: 获取文件的所有历史版本
+      operationId: getVersionHistory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          description: 文件 ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  - version_id: 1
+                    version_number: 2
+                    file_size: 1048576
+                    created_at: "2024-01-02T00:00:00Z"
+                    uploader_id: 1
+                    uploader_name: "testuser"
+                    is_current: true
+                  - version_id: 2
+                    version_number: 1
+                    file_size: 1024000
+                    created_at: "2024-01-01T00:00:00Z"
+                    uploader_id: 1
+                    uploader_name: "testuser"
+                    is_current: false
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限访问此文件
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 文件不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/files/{fileId}/versions/{versionId}/download:
+    get:
+      tags:
+        - 版本管理
+      summary: 下载版本
+      description: 下载文件的指定版本
+      operationId: downloadVersion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          description: 文件 ID
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          description: 版本 ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 下载成功
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: 文件名
+              schema:
+                type: string
+                example: 'attachment; filename="document_v1.pdf"'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限下载此文件
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 文件或版本不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/files/{fileId}/versions/{versionId}/restore:
+    post:
+      tags:
+        - 版本管理
+      summary: 恢复版本
+      description: 将文件恢复到指定版本（非破坏性，创建新版本）
+      operationId: restoreVersion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          description: 文件 ID
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          description: 版本 ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 恢复成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  new_version_id: 3
+                  version_number: 3
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限恢复此文件版本
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 文件或版本不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '507':
+          description: 存储空间不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/files/{fileId}/versions/{versionId}:
+    delete:
+      tags:
+        - 版本管理
+      summary: 删除版本
+      description: 删除文件的指定版本（不能删除当前版本）
+      operationId: deleteVersion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          description: 文件 ID
+          schema:
+            type: integer
+        - name: versionId
+          in: path
+          required: true
+          description: 版本 ID
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: 删除成功
+        '400':
+          description: 不能删除当前版本
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 只有文件所有者可以删除版本
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 文件或版本不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ========== Phase 5: 协作功能 API ==========
+  /api/collaborations:
+    post:
+      tags:
+        - 协作
+      summary: 添加协作者
+      description: 为文件添加协作者并设置权限
+      operationId: addCollaborator
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCollaboratorRequest'
+            example:
+              file_id: 1
+              username: "collaborator"
+              permission: "edit"
+      responses:
+        '201':
+          description: 添加成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: 添加成功
+                data:
+                  collaboration_id: 1
+                  file_id: 1
+                  collaborator_id: 2
+                  collaborator_name: "collaborator"
+                  permission: "edit"
+                  added_at: "2024-01-01T00:00:00Z"
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限管理此文件的协作者
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 文件或用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 该用户已经是协作者
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/collaborations/me:
+    get:
+      tags:
+        - 协作
+      summary: 获取我的协作文件
+      description: 获取当前用户作为协作者的所有文件
+      operationId: getMyCollaborations
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  - file_id: 1
+                    file_name: "shared_document.pdf"
+                    file_type: "application/pdf"
+                    file_size: 1048576
+                    owner_name: "owner_user"
+                    permission: "edit"
+                    shared_at: "2024-01-01T00:00:00Z"
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/files/{fileId}/collaborators:
+    get:
+      tags:
+        - 协作
+      summary: 获取协作者列表
+      description: 获取文件的所有协作者
+      operationId: getCollaborators
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          description: 文件 ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  - user_id: 2
+                    username: "collaborator"
+                    permission: "edit"
+                    added_at: "2024-01-01T00:00:00Z"
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限查看此文件的协作者
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 文件不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/files/{fileId}/collaborators/{userId}:
+    put:
+      tags:
+        - 协作
+      summary: 更新协作者权限
+      description: 更新协作者的访问权限
+      operationId: updateCollaboratorPermission
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          description: 文件 ID
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          description: 协作者用户 ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePermissionRequest'
+            example:
+              permission: "download"
+      responses:
+        '204':
+          description: 更新成功
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限管理此文件的协作者
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 文件或协作关系不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - 协作
+      summary: 移除协作者
+      description: 移除文件的协作者
+      operationId: removeCollaborator
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          description: 文件 ID
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          description: 协作者用户 ID
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: 移除成功
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限管理此文件的协作者
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 文件或协作关系不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/files/{fileId}/permissions:
+    get:
+      tags:
+        - 协作
+      summary: 检查文件权限
+      description: 检查当前用户对文件的访问权限
+      operationId: checkFilePermission
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          description: 文件 ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+              example:
+                code: 200
+                message: success
+                data:
+                  can_view: true
+                  can_download: true
+                  can_edit: true
+                  is_owner: false
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 文件不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    # ========== Phase 5 Schemas ==========
+    
+    # 分享相关 Schemas
+    CreateShareRequest:
+      type: object
+      properties:
+        file_ids:
+          type: array
+          items:
+            type: string
+          description: 要分享的文件 ID 列表
+          minItems: 1
+        expires_in:
+          type: integer
+          nullable: true
+          description: 过期天数（null 表示永不过期）
+          example: 7
+        access_code:
+          type: string
+          nullable: true
+          description: 访问密码（4-8 字符，可选）
+          minLength: 4
+          maxLength: 8
+          example: "1234"
+      required:
+        - file_ids
+
+    VerifyPasswordRequest:
+      type: object
+      properties:
+        access_code:
+          type: string
+          description: 访问密码
+          example: "1234"
+      required:
+        - access_code
+
+    # 回收站相关 Schemas
+    MoveToRecycleRequest:
+      type: object
+      properties:
+        file_ids:
+          type: array
+          items:
+            type: integer
+          description: 要移动到回收站的文件 ID 列表
+          minItems: 1
+          example: [1, 2, 3]
+      required:
+        - file_ids
+
+    RestoreFilesRequest:
+      type: object
+      properties:
+        item_ids:
+          type: array
+          items:
+            type: integer
+          description: 要恢复的回收站项目 ID 列表
+          minItems: 1
+          example: [1, 2, 3]
+      required:
+        - item_ids
+
+    PermanentDeleteRequest:
+      type: object
+      properties:
+        item_ids:
+          type: array
+          items:
+            type: integer
+          description: 要永久删除的回收站项目 ID 列表
+          minItems: 1
+          example: [1, 2, 3]
+      required:
+        - item_ids
+
+    RecycleBinItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 回收站项目 ID
+          example: 1
+        file_id:
+          type: string
+          description: 文件 ID
+          example: "file-uuid-1"
+        file_name:
+          type: string
+          description: 文件名
+          example: "document.pdf"
+        file_size:
+          type: integer
+          format: int64
+          description: 文件大小（字节）
+          example: 1048576
+        file_type:
+          type: string
+          description: 文件类型
+          example: "application/pdf"
+        original_path:
+          type: string
+          description: 原始路径
+          example: "/Documents/document.pdf"
+        deleted_at:
+          type: string
+          format: date-time
+          description: 删除时间
+        expires_at:
+          type: string
+          format: date-time
+          description: 过期时间（30 天后）
+
+    # 协作相关 Schemas
+    AddCollaboratorRequest:
+      type: object
+      properties:
+        file_id:
+          type: integer
+          description: 文件 ID
+          example: 1
+        username:
+          type: string
+          description: 协作者用户名
+          example: "collaborator"
+        permission:
+          type: string
+          description: 权限级别
+          enum: [view, download, edit]
+          example: "edit"
+      required:
+        - file_id
+        - username
+        - permission
+
+    UpdatePermissionRequest:
+      type: object
+      properties:
+        permission:
+          type: string
+          description: 新的权限级别
+          enum: [view, download, edit]
+          example: "download"
+      required:
+        - permission
+
+    CollaboratorInfo:
+      type: object
+      properties:
+        user_id:
+          type: integer
+          description: 协作者用户 ID
+          example: 2
+        username:
+          type: string
+          description: 协作者用户名
+          example: "collaborator"
+        permission:
+          type: string
+          description: 权限级别
+          enum: [view, download, edit]
+          example: "edit"
+        added_at:
+          type: string
+          format: date-time
+          description: 添加时间
+
+    FilePermission:
+      type: object
+      properties:
+        can_view:
+          type: boolean
+          description: 是否可以查看
+          example: true
+        can_download:
+          type: boolean
+          description: 是否可以下载
+          example: true
+        can_edit:
+          type: boolean
+          description: 是否可以编辑
+          example: true
+        is_owner:
+          type: boolean
+          description: 是否是所有者
+          example: false
+
+    # 版本管理相关 Schemas
+    VersionInfo:
+      type: object
+      properties:
+        version_id:
+          type: integer
+          description: 版本 ID
+          example: 1
+        version_number:
+          type: integer
+          description: 版本号
+          example: 2
+        file_size:
+          type: integer
+          format: int64
+          description: 文件大小（字节）
+          example: 1048576
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+        uploader_id:
+          type: integer
+          description: 上传者 ID
+          example: 1
+        uploader_name:
+          type: string
+          description: 上传者用户名
+          example: "testuser"
+        is_current:
+          type: boolean
+          description: 是否当前版本
+          example: true
+
+    # 搜索相关 Schemas
+    SearchFileItem:
+      type: object
+      properties:
+        file_id:
+          type: string
+          description: 文件 ID
+          example: "file-uuid-1"
+        file_name:
+          type: string
+          description: 文件名
+          example: "document.pdf"
+        file_type:
+          type: string
+          description: 文件类型
+          example: "application/pdf"
+        file_size:
+          type: integer
+          format: int64
+          description: 文件大小（字节）
+          example: 1048576
+        file_path:
+          type: string
+          description: 文件路径
+          example: "/Documents/document.pdf"
+        modified_at:
+          type: string
+          format: date-time
+          description: 修改时间
+        is_folder:
+          type: boolean
+          description: 是否文件夹
+          example: false
+
+    SearchSuggestion:
+      type: object
+      properties:
+        keyword:
+          type: string
+          description: 建议关键词
+          example: "document.pdf"
+        count:
+          type: integer
+          description: 匹配数量
+          example: 3

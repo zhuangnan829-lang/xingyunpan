@@ -1,0 +1,120 @@
+:root {
+  color-scheme: light;
+  --page-bg: #eef4fb;
+  --surface: rgba(255, 255, 255, 0.86);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --brand-500: #3b82f6;
+  --brand-600: #2563eb;
+  --brand-700: #1d4ed8;
+  --shadow-soft: 0 24px 60px rgba(15, 23, 42, 0.08);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--text-primary);
+  background:
+    radial-gradient(circle at 14% 8%, rgba(111, 205, 255, 0.22), transparent 26%),
+    radial-gradient(circle at 84% 10%, rgba(255, 198, 221, 0.18), transparent 24%),
+    linear-gradient(135deg, #f9fcff 0%, #eef6ff 46%, #fff7fb 100%);
+  font-family:
+    "Inter",
+    "PingFang SC",
+    "SF Pro SC",
+    "PingFang SC",
+    "Segoe UI",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    sans-serif;
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+strong {
+  letter-spacing: 0;
+}
+
+.el-popper.is-light {
+  border: 1px solid rgba(255, 255, 255, 0.82) !important;
+  border-radius: 18px !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(116, 220, 255, 0.14), transparent 34%),
+    rgba(255, 255, 255, 0.78) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 22px 48px rgba(73, 112, 160, 0.18) !important;
+  backdrop-filter: blur(18px);
+}
+
+.el-dropdown-menu {
+  padding: 8px !important;
+  border-radius: 18px !important;
+  background: transparent !important;
+}
+
+.el-dropdown-menu__item {
+  min-height: 40px;
+  border-radius: 12px;
+  color: #27364e !important;
+  font-weight: 700;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.el-dropdown-menu__item:hover,
+.el-dropdown-menu__item:focus {
+  color: #1d70da !important;
+  background: rgba(225, 242, 255, 0.82) !important;
+  transform: translateX(2px);
+}
+
+.el-dropdown-menu__item--divided {
+  margin-top: 8px !important;
+  border-top-color: rgba(219, 234, 249, 0.78) !important;
+}
+
+.el-button--primary {
+  --el-button-bg-color: #2d70ff;
+  --el-button-border-color: #2d70ff;
+  --el-button-hover-bg-color: #19aeea;
+  --el-button-hover-border-color: #19aeea;
+  --el-button-active-bg-color: #2464e8;
+  --el-button-active-border-color: #2464e8;
+}

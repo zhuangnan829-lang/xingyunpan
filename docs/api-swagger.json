@@ -1,0 +1,1049 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "星云盘 V2 API",
+    "description": "星云盘 V2 是一个基于 Go + GORM + Redis + MinIO 的高性能云盘系统。\n\n## 功能特性\n- 用户注册与登录（JWT 认证）\n- 文件上传与下载（支持秒传）\n- 文件夹管理（创建、重命名、移动、删除）\n- 文件去重（基于 SHA256 哈希）\n- 引用计数管理\n\n## 认证方式\n大部分 API 需要在请求头中携带 JWT Token：\n```\nAuthorization: Bearer <access_token>\n```",
+    "version": "2.0.0",
+    "contact": {
+      "name": "星云盘团队",
+      "email": "support@xingyunpan.com"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "本地开发环境"
+    },
+    {
+      "url": "https://api.xingyunpan.com",
+      "description": "生产环境"
+    }
+  ],
+  "tags": [
+    {
+      "name": "健康检查",
+      "description": "服务健康状态检查"
+    },
+    {
+      "name": "认证",
+      "description": "用户注册、登录相关接口"
+    },
+    {
+      "name": "用户",
+      "description": "用户信息管理"
+    },
+    {
+      "name": "文件",
+      "description": "文件上传、下载、删除等操作"
+    },
+    {
+      "name": "文件夹",
+      "description": "文件夹创建、重命名、移动、删除"
+    },
+    {
+      "name": "分享",
+      "description": "文件分享功能（Phase 5）"
+    },
+    {
+      "name": "搜索",
+      "description": "文件搜索功能（Phase 5）"
+    },
+    {
+      "name": "回收站",
+      "description": "回收站管理功能（Phase 5）"
+    },
+    {
+      "name": "版本管理",
+      "description": "文件版本管理功能（Phase 5）"
+    },
+    {
+      "name": "协作",
+      "description": "文件协作功能（Phase 5）"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["健康检查"],
+        "summary": "完整健康检查",
+        "description": "检查服务、数据库和 Redis 的健康状态",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "服务正常",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "success",
+                  "data": {
+                    "service": {
+                      "status": "healthy",
+                      "name": "xingyunpan-v2"
+                    },
+                    "database": {
+                      "status": "healthy"
+                    },
+                    "redis": {
+                      "status": "healthy"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ping": {
+      "get": {
+        "tags": ["健康检查"],
+        "summary": "Ping 测试",
+        "description": "简单的 Ping 测试接口",
+        "operationId": "ping",
+        "responses": {
+          "200": {
+            "description": "Pong",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "pong",
+                  "data": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": ["认证"],
+        "summary": "用户注册",
+        "description": "创建新用户账号",
+        "operationId": "register",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              },
+              "example": {
+                "username": "testuser",
+                "password": "password123",
+                "email": "test@example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "注册成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "注册成功",
+                  "data": {
+                    "user_id": 1,
+                    "username": "testuser",
+                    "email": "test@example.com"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["认证"],
+        "summary": "用户登录",
+        "description": "用户登录获取 JWT Token",
+        "operationId": "login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": {
+                "username": "testuser",
+                "password": "password123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "登录成功",
+                  "data": {
+                    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    "expires_in": 86400,
+                    "user": {
+                      "id": 1,
+                      "username": "testuser",
+                      "email": "test@example.com"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/user/info": {
+      "get": {
+        "tags": ["用户"],
+        "summary": "获取用户信息",
+        "description": "获取当前登录用户的详细信息",
+        "operationId": "getUserInfo",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "success",
+                  "data": {
+                    "id": 1,
+                    "username": "testuser",
+                    "email": "test@example.com",
+                    "capacity": 10737418240,
+                    "used_size": 1048576,
+                    "created_at": "2024-01-01T00:00:00Z",
+                    "updated_at": "2024-01-01T00:00:00Z"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/file/upload": {
+      "post": {
+        "tags": ["文件"],
+        "summary": "文件上传",
+        "description": "上传文件到云盘（支持秒传）",
+        "operationId": "uploadFile",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "parent_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "上传成功"
+          }
+        }
+      }
+    },
+    "/api/v1/file/list": {
+      "get": {
+        "tags": ["文件"],
+        "summary": "文件列表",
+        "description": "获取用户的文件列表（支持分页）",
+        "operationId": "listFiles",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功"
+          }
+        }
+      }
+    },
+    "/api/v1/file/{id}": {
+      "delete": {
+        "tags": ["文件"],
+        "summary": "删除文件",
+        "operationId": "deleteFile",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功"
+          }
+        }
+      }
+    },
+    "/api/v1/file/check": {
+      "post": {
+        "tags": ["文件"],
+        "summary": "秒传检查",
+        "operationId": "checkFile",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "hash": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "检查成功"
+          }
+        }
+      }
+    },
+    "/api/v1/folder": {
+      "post": {
+        "tags": ["文件夹"],
+        "summary": "创建文件夹",
+        "operationId": "createFolder",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFolderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功"
+          }
+        }
+      }
+    },
+    "/api/v1/folder/{id}": {
+      "put": {
+        "tags": ["文件夹"],
+        "summary": "重命名文件夹",
+        "operationId": "renameFolder",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "重命名成功"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["文件夹"],
+        "summary": "删除文件夹",
+        "operationId": "deleteFolder",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功"
+          }
+        }
+      }
+    },
+    "/api/v1/folder/{id}/move": {
+      "put": {
+        "tags": ["文件夹"],
+        "summary": "移动文件夹",
+        "operationId": "moveFolder",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "移动成功"
+          }
+        }
+      }
+    },
+    "/api/shares": {
+      "post": {
+        "tags": ["分享"],
+        "summary": "创建分享",
+        "description": "创建文件分享链接，支持密码保护和过期时间",
+        "operationId": "createShare",
+        "security": [{"BearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/CreateShareRequest"},
+              "example": {
+                "file_ids": ["file-uuid-1", "file-uuid-2"],
+                "expires_in": 7,
+                "access_code": "1234"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {"description": "创建成功"}
+        }
+      }
+    },
+    "/api/shares/me": {
+      "get": {
+        "tags": ["分享"],
+        "summary": "获取我的分享列表",
+        "operationId": "getMyShares",
+        "security": [{"BearerAuth": []}],
+        "responses": {
+          "200": {"description": "获取成功"}
+        }
+      }
+    },
+    "/api/shares/{shareId}": {
+      "get": {
+        "tags": ["分享"],
+        "summary": "获取分享信息",
+        "operationId": "getShareInfo",
+        "parameters": [
+          {
+            "name": "shareId",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "获取成功"},
+          "410": {"description": "分享已过期"}
+        }
+      },
+      "delete": {
+        "tags": ["分享"],
+        "summary": "删除分享",
+        "operationId": "deleteShare",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {
+            "name": "shareId",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "204": {"description": "删除成功"}
+        }
+      }
+    },
+    "/api/shares/{shareId}/verify": {
+      "post": {
+        "tags": ["分享"],
+        "summary": "验证分享密码",
+        "operationId": "verifySharePassword",
+        "parameters": [
+          {
+            "name": "shareId",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/VerifyPasswordRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "验证成功"},
+          "429": {"description": "超过验证次数限制"}
+        }
+      }
+    },
+    "/api/shares/{shareId}/download": {
+      "post": {
+        "tags": ["分享"],
+        "summary": "增加下载计数",
+        "operationId": "incrementDownloadCount",
+        "parameters": [
+          {
+            "name": "shareId",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "204": {"description": "成功"}
+        }
+      }
+    },
+    "/api/search/files": {
+      "get": {
+        "tags": ["搜索"],
+        "summary": "搜索文件",
+        "operationId": "searchFiles",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {"name": "keyword", "in": "query", "schema": {"type": "string"}},
+          {"name": "file_type", "in": "query", "schema": {"type": "string"}},
+          {"name": "size_min", "in": "query", "schema": {"type": "integer"}},
+          {"name": "size_max", "in": "query", "schema": {"type": "integer"}},
+          {"name": "date_from", "in": "query", "schema": {"type": "string", "format": "date-time"}},
+          {"name": "date_to", "in": "query", "schema": {"type": "string", "format": "date-time"}},
+          {"name": "folder_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}},
+          {"name": "page_size", "in": "query", "schema": {"type": "integer", "default": 20}}
+        ],
+        "responses": {
+          "200": {"description": "搜索成功"}
+        }
+      }
+    },
+    "/api/search/suggestions": {
+      "get": {
+        "tags": ["搜索"],
+        "summary": "获取搜索建议",
+        "operationId": "getSearchSuggestions",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {
+            "name": "prefix",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string", "minLength": 2}
+          }
+        ],
+        "responses": {
+          "200": {"description": "获取成功"}
+        }
+      }
+    },
+    "/api/recycle": {
+      "post": {
+        "tags": ["回收站"],
+        "summary": "移动到回收站",
+        "operationId": "moveToRecycle",
+        "security": [{"BearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/MoveToRecycleRequest"}
+            }
+          }
+        },
+        "responses": {
+          "204": {"description": "移动成功"}
+        }
+      },
+      "get": {
+        "tags": ["回收站"],
+        "summary": "获取回收站列表",
+        "operationId": "getRecycleList",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}},
+          {"name": "page_size", "in": "query", "schema": {"type": "integer", "default": 20}}
+        ],
+        "responses": {
+          "200": {"description": "获取成功"}
+        }
+      },
+      "delete": {
+        "tags": ["回收站"],
+        "summary": "永久删除",
+        "operationId": "permanentDelete",
+        "security": [{"BearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/PermanentDeleteRequest"}
+            }
+          }
+        },
+        "responses": {
+          "204": {"description": "删除成功"}
+        }
+      }
+    },
+    "/api/recycle/restore": {
+      "post": {
+        "tags": ["回收站"],
+        "summary": "恢复文件",
+        "operationId": "restoreFiles",
+        "security": [{"BearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/RestoreFilesRequest"}
+            }
+          }
+        },
+        "responses": {
+          "204": {"description": "恢复成功"}
+        }
+      }
+    },
+    "/api/recycle/all": {
+      "delete": {
+        "tags": ["回收站"],
+        "summary": "清空回收站",
+        "operationId": "emptyRecycleBin",
+        "security": [{"BearerAuth": []}],
+        "responses": {
+          "204": {"description": "清空成功"}
+        }
+      }
+    },
+    "/api/files/{fileId}/versions": {
+      "get": {
+        "tags": ["版本管理"],
+        "summary": "获取版本历史",
+        "operationId": "getVersionHistory",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "integer"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "获取成功"}
+        }
+      }
+    },
+    "/api/files/{fileId}/versions/{versionId}/download": {
+      "get": {
+        "tags": ["版本管理"],
+        "summary": "下载版本",
+        "operationId": "downloadVersion",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {"name": "fileId", "in": "path", "required": true, "schema": {"type": "integer"}},
+          {"name": "versionId", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {"description": "下载成功", "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}
+        }
+      }
+    },
+    "/api/files/{fileId}/versions/{versionId}/restore": {
+      "post": {
+        "tags": ["版本管理"],
+        "summary": "恢复版本",
+        "operationId": "restoreVersion",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {"name": "fileId", "in": "path", "required": true, "schema": {"type": "integer"}},
+          {"name": "versionId", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {"description": "恢复成功"},
+          "507": {"description": "存储空间不足"}
+        }
+      }
+    },
+    "/api/files/{fileId}/versions/{versionId}": {
+      "delete": {
+        "tags": ["版本管理"],
+        "summary": "删除版本",
+        "operationId": "deleteVersion",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {"name": "fileId", "in": "path", "required": true, "schema": {"type": "integer"}},
+          {"name": "versionId", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "204": {"description": "删除成功"},
+          "400": {"description": "不能删除当前版本"}
+        }
+      }
+    },
+    "/api/collaborations": {
+      "post": {
+        "tags": ["协作"],
+        "summary": "添加协作者",
+        "operationId": "addCollaborator",
+        "security": [{"BearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/AddCollaboratorRequest"}
+            }
+          }
+        },
+        "responses": {
+          "201": {"description": "添加成功"},
+          "409": {"description": "该用户已经是协作者"}
+        }
+      }
+    },
+    "/api/collaborations/me": {
+      "get": {
+        "tags": ["协作"],
+        "summary": "获取我的协作文件",
+        "operationId": "getMyCollaborations",
+        "security": [{"BearerAuth": []}],
+        "responses": {
+          "200": {"description": "获取成功"}
+        }
+      }
+    },
+    "/api/files/{fileId}/collaborators": {
+      "get": {
+        "tags": ["协作"],
+        "summary": "获取协作者列表",
+        "operationId": "getCollaborators",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {"name": "fileId", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {"description": "获取成功"}
+        }
+      }
+    },
+    "/api/files/{fileId}/collaborators/{userId}": {
+      "put": {
+        "tags": ["协作"],
+        "summary": "更新协作者权限",
+        "operationId": "updateCollaboratorPermission",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {"name": "fileId", "in": "path", "required": true, "schema": {"type": "integer"}},
+          {"name": "userId", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/UpdatePermissionRequest"}
+            }
+          }
+        },
+        "responses": {
+          "204": {"description": "更新成功"}
+        }
+      },
+      "delete": {
+        "tags": ["协作"],
+        "summary": "移除协作者",
+        "operationId": "removeCollaborator",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {"name": "fileId", "in": "path", "required": true, "schema": {"type": "integer"}},
+          {"name": "userId", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "204": {"description": "移除成功"}
+        }
+      }
+    },
+    "/api/files/{fileId}/permissions": {
+      "get": {
+        "tags": ["协作"],
+        "summary": "检查文件权限",
+        "operationId": "checkFilePermission",
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {"name": "fileId", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {"description": "获取成功"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Response": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "nullable": true
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["username", "password", "email"],
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateFolderRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "CreateShareRequest": {
+        "type": "object",
+        "required": ["file_ids"],
+        "properties": {
+          "file_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1
+          },
+          "expires_in": {
+            "type": "integer",
+            "nullable": true
+          },
+          "access_code": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 4,
+            "maxLength": 8
+          }
+        }
+      },
+      "VerifyPasswordRequest": {
+        "type": "object",
+        "required": ["access_code"],
+        "properties": {
+          "access_code": {"type": "string"}
+        }
+      },
+      "MoveToRecycleRequest": {
+        "type": "object",
+        "required": ["file_ids"],
+        "properties": {
+          "file_ids": {
+            "type": "array",
+            "items": {"type": "integer"},
+            "minItems": 1
+          }
+        }
+      },
+      "RestoreFilesRequest": {
+        "type": "object",
+        "required": ["item_ids"],
+        "properties": {
+          "item_ids": {
+            "type": "array",
+            "items": {"type": "integer"},
+            "minItems": 1
+          }
+        }
+      },
+      "PermanentDeleteRequest": {
+        "type": "object",
+        "required": ["item_ids"],
+        "properties": {
+          "item_ids": {
+            "type": "array",
+            "items": {"type": "integer"},
+            "minItems": 1
+          }
+        }
+      },
+      "AddCollaboratorRequest": {
+        "type": "object",
+        "required": ["file_id", "username", "permission"],
+        "properties": {
+          "file_id": {"type": "integer"},
+          "username": {"type": "string"},
+          "permission": {
+            "type": "string",
+            "enum": ["view", "download", "edit"]
+          }
+        }
+      },
+      "UpdatePermissionRequest": {
+        "type": "object",
+        "required": ["permission"],
+        "properties": {
+          "permission": {
+            "type": "string",
+            "enum": ["view", "download", "edit"]
+          }
+        }
+      }
+    }
+  }
+}

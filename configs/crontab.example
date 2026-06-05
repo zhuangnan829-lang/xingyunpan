@@ -1,0 +1,116 @@
+# 星云盘 V2 Cron 定时任务配置
+# Crontab Configuration for Xingyunpan V2
+#
+# 安装方法:
+# 1. 复制此文件内容
+# 2. 编辑 crontab: crontab -e -u xingyunpan
+# 3. 粘贴并根据需要调整
+#
+# 格式说明:
+# ┌───────────── 分钟 (0 - 59)
+# │ ┌───────────── 小时 (0 - 23)
+# │ │ ┌───────────── 日期 (1 - 31)
+# │ │ │ ┌───────────── 月份 (1 - 12)
+# │ │ │ │ ┌───────────── 星期 (0 - 7, 0 和 7 都表示星期日)
+# │ │ │ │ │
+# * * * * * 命令
+
+# 环境变量
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=admin@example.com
+
+# 工作目录
+WORKDIR=/opt/xingyunpan-v2
+
+# ============================================================================
+# 数据库备份任务
+# ============================================================================
+
+# 每日凌晨 2:00 执行数据库备份
+0 2 * * * source $WORKDIR/configs/.env.backup && $WORKDIR/scripts/backup.sh >> /var/log/xingyunpan-backup.log 2>&1
+
+# 每周日凌晨 3:00 执行完整备份并同步到远程服务器（可选）
+# 0 3 * * 0 source $WORKDIR/configs/.env.backup && $WORKDIR/scripts/backup.sh && $WORKDIR/scripts/sync-backup.sh >> /var/log/xingyunpan-backup-sync.log 2>&1
+
+# ============================================================================
+# 监控检查任务
+# ============================================================================
+
+# 每 5 分钟检查应用健康状态
+*/5 * * * * curl -f http://localhost:8080/health > /dev/null 2>&1 || echo "Application health check failed at $(date)" >> /var/log/xingyunpan-health.log
+
+# 每 5 分钟检查数据库连接
+*/5 * * * * mysql -h localhost -u xingyunpan -p$DB_PASSWORD -e "SELECT 1" > /dev/null 2>&1 || echo "Database check failed at $(date)" >> /var/log/xingyunpan-db-check.log
+
+# 每 5 分钟检查 Redis 连接
+*/5 * * * * redis-cli -h localhost -a $REDIS_PASSWORD ping > /dev/null 2>&1 || echo "Redis check failed at $(date)" >> /var/log/xingyunpan-redis-check.log
+
+# 每 10 分钟检查磁盘空间
+*/10 * * * * $WORKDIR/scripts/check-disk-space.sh >> /var/log/xingyunpan-disk-check.log 2>&1
+
+# ============================================================================
+# 日志清理任务
+# ============================================================================
+
+# 每日凌晨 3:00 清理应用日志（保留 7 天）
+0 3 * * * find /data/xingyunpan/logs -name "app-*.log.gz" -mtime +7 -delete
+
+# 每日凌晨 3:30 清理临时文件（保留 1 天）
+30 3 * * * find /data/xingyunpan/temp -type f -mtime +1 -delete
+
+# 每周日凌晨 4:00 清理旧的备份日志
+0 4 * * 0 find /var/log -name "xingyunpan-*.log" -mtime +30 -delete
+
+# ============================================================================
+# 数据清理任务
+# ============================================================================
+
+# 每日凌晨 4:00 清理过期的分片上传记录（超过 7 天）
+0 4 * * * mysql -h localhost -u xingyunpan -p$DB_PASSWORD xingyunpan -e "DELETE FROM multipart_uploads WHERE status='expired' AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)" >> /var/log/xingyunpan-cleanup.log 2>&1
+
+# 每日凌晨 4:30 清理软删除的文件（超过 30 天）
+30 4 * * * mysql -h localhost -u xingyunpan -p$DB_PASSWORD xingyunpan -e "DELETE FROM user_files WHERE deleted_at IS NOT NULL AND deleted_at < DATE_SUB(NOW(), INTERVAL 30 DAY)" >> /var/log/xingyunpan-cleanup.log 2>&1
+
+# ============================================================================
+# 性能优化任务
+# ============================================================================
+
+# 每周日凌晨 5:00 优化数据库表
+0 5 * * 0 mysql -h localhost -u xingyunpan -p$DB_PASSWORD xingyunpan -e "OPTIMIZE TABLE users, user_files, physical_files, multipart_uploads" >> /var/log/xingyunpan-optimize.log 2>&1
+
+# 每周日凌晨 5:30 更新数据库统计信息
+30 5 * * 0 mysql -h localhost -u xingyunpan -p$DB_PASSWORD xingyunpan -e "ANALYZE TABLE users, user_files, physical_files, multipart_uploads" >> /var/log/xingyunpan-analyze.log 2>&1
+
+# ============================================================================
+# 备份验证任务
+# ============================================================================
+
+# 每日上午 10:00 验证最新备份文件
+0 10 * * * $WORKDIR/scripts/verify-backup.sh >> /var/log/xingyunpan-backup-verify.log 2>&1
+
+# ============================================================================
+# 报告生成任务
+# ============================================================================
+
+# 每周一上午 9:00 生成周报
+# 0 9 * * 1 $WORKDIR/scripts/generate-weekly-report.sh >> /var/log/xingyunpan-report.log 2>&1
+
+# 每月 1 号上午 9:00 生成月报
+# 0 9 1 * * $WORKDIR/scripts/generate-monthly-report.sh >> /var/log/xingyunpan-report.log 2>&1
+
+# ============================================================================
+# SSL 证书更新任务
+# ============================================================================
+
+# 每天凌晨 1:00 尝试更新 SSL 证书（Let's Encrypt）
+0 1 * * * certbot renew --quiet --post-hook "systemctl reload nginx" >> /var/log/letsencrypt-renew.log 2>&1
+
+# ============================================================================
+# 注意事项
+# ============================================================================
+# 1. 确保所有脚本都有执行权限: chmod +x scripts/*.sh
+# 2. 确保环境变量文件存在: configs/.env.backup
+# 3. 确保日志目录存在: mkdir -p /var/log
+# 4. 定期检查 cron 日志: tail -f /var/log/cron
+# 5. 测试 cron 任务: run-parts --test /etc/cron.daily

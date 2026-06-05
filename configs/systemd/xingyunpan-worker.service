@@ -1,0 +1,36 @@
+[Unit]
+Description=Xingyunpan V2 Worker
+After=network.target mysql.service redis.service
+Wants=mysql.service redis.service
+
+[Service]
+Type=simple
+User=xingyunpan
+Group=xingyunpan
+WorkingDirectory=/opt/xingyunpan-v2
+
+# 加载环境变量
+EnvironmentFile=/opt/xingyunpan-v2/configs/.env.production
+
+# 启动命令
+ExecStart=/opt/xingyunpan-v2/bin/worker -config=/opt/xingyunpan-v2/configs/config.prod.yaml
+
+# 重启策略
+Restart=always
+RestartSec=10
+
+# 资源限制
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# 日志配置
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=xingyunpan-worker
+
+# 安全配置
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

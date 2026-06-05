@@ -1,0 +1,20 @@
+[Unit]
+Description=Xingyunpan V2 Monitoring Check
+After=network.target xingyunpan-server.service
+
+[Service]
+Type=oneshot
+User=xingyunpan
+Group=xingyunpan
+WorkingDirectory=/opt/xingyunpan-v2
+
+# 健康检查
+ExecStart=/usr/bin/curl -f http://localhost:8080/health
+
+# 失败时记录日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=xingyunpan-monitoring
+
+[Install]
+WantedBy=multi-user.target
